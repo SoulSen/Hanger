@@ -52,9 +52,11 @@ class Client:
         self._event_handler.register_event('on_history_modification',
                                            self.on_history_modification)
 
-    def event(self, func):
-        setattr(self, func.__name__, func)
-        return func
+    def event(self):
+        def decorator(func):
+            setattr(self, func.__name__, func)
+            return func
+        return decorator
 
     async def on_ready(self) -> None:
         pass
