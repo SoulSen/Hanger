@@ -11,9 +11,6 @@ class Bot(Client):
         self._commands = {}
 
     async def on_message(self, event: ChatMessageEvent) -> None:
-        if event.user.display_name == 'SoulSenGaming':
-            return
-
         command = event.text
 
         if command.startswith(self.prefix):
