@@ -36,6 +36,3 @@ class Bot(Client):
             return func
 
         return decorator
-
-    async def connect(self):
-        await self._hangups_client.connect()
