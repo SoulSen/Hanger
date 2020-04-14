@@ -26,7 +26,6 @@ class User(Messageable):
         return (await self._client.create_private_conversation(self))._get_conversation_id()
 
     def _update(self, data) -> None:
-        data = data.entity[0]
         properties = getattr(data, 'properties', None)
 
         self.user_type = try_enum(UserType, getattr(data, 'entity_type', None))

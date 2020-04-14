@@ -57,3 +57,36 @@ class _Cache:
             )
         else:
             return user
+
+    async def _update_cache(self, payload) -> None:
+        await self._update_users(
+            payload
+        )
+        await self._update_conversation(
+            payload
+        )
+
+    async def _update_users(self, payload) -> None:
+        for participant in payload.participant_data:
+            user_id = participant.id.gaia_id
+            user = self.get_user(user_id)
+
+            if not user:
+                user = await self._client.fetch_user(user_id)
+                self.store_user(user)
+            else:
+                updated_data = await self._client.http.fetch_user(user_id)
+                user._update(updated_data)
+
+            await self._client._update_presence(user)
+
+    async def _update_conversation(self, payload) -> None:
+        conversation_id = payload.conversation_id.id
+        conversation = self.get_conversation(conversation_id)
+
+        if conversation is None:
+            conversation = await self._client.fetch_conversation(conversation_id)
+            self.store_conversation(conversation)
+        else:
+            updated_data = await self._client.http.fetch_conversation(conversation_id)
+            conversation._update(updated_data)

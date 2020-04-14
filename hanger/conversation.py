@@ -90,8 +90,10 @@ class Conversation(Messageable):
         self.type: ConversationType = try_enum(ConversationType, getattr(conversation, 'type', None))
         self.name: str = getattr(conversation, 'name', None)
         self.has_active_hangout: bool = getattr(conversation, 'has_active_hangout', None)
-        self.otr_status: ConversationHistoryStatus = try_enum(ConversationHistoryStatus, getattr(conversation, 'otr_status', None))
-        self.otr_toggleable: ConversationHistoryToggleable = try_enum(ConversationHistoryToggleable, getattr(conversation, 'otr_toggle', None))
+        self.otr_status: ConversationHistoryStatus = try_enum(ConversationHistoryStatus,
+                                                              getattr(conversation, 'otr_status', None))
+        self.otr_toggleable: ConversationHistoryToggleable = try_enum(ConversationHistoryToggleable,
+                                                                      getattr(conversation, 'otr_toggle', None))
         self.conversation_history_supported: bool = getattr(conversation, 'conversation_history_supported', None)
 
         if not hasattr(self, '_participants'):
@@ -104,7 +106,7 @@ class Conversation(Messageable):
             if participant:
                 participant._update_participant(participant_data)
             else:
-                self._participants[user.id] = Participant(self._client._cache, user._data, participant_data, self)
+                self._participants[user.id] = Participant(self._client, user._data, participant_data, self)
 
         self.network_type: NetworkType = try_enum(NetworkType, getattr(conversation, 'network_type', None))
         self.force_history_state: ForceHistory = try_enum(ForceHistory,

@@ -191,6 +191,16 @@ class FocusType(Enum):
     UNFOCUSED = 2
 
 
+class PhoneDiscoverabilityStatus(Enum):
+    UNKNOWN = 0
+    OPTED_IN_BUT_NOT_DISCOVERABLE = 2
+
+
+class PhoneVerificationStatus(Enum):
+    UNKNOWN = 0
+    VERIFIED = 1
+
+
 def try_enum(cls: Type[Enum], val):
     """A function that tries to turn the value into enum ``cls``.
     If it fails it returns the value instead.

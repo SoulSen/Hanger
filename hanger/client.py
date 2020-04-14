@@ -1,22 +1,17 @@
 import asyncio
-from datetime import datetime, timezone
 
 import hangups
-from hangups import parsers
-from hangups.hangouts_pb2 import StateUpdate, GetEntityByIdRequest, EntityLookupSpec, GetConversationRequest, \
-    ConversationSpec, ConversationId, CreateConversationRequest, CONVERSATION_TYPE_ONE_TO_ONE, InviteeID, \
-    MEMBERSHIP_CHANGE_TYPE_JOIN, RemoveUserRequest, DeleteConversationRequest, CONVERSATION_TYPE_GROUP, \
-    RenameConversationRequest, SetTypingRequest, TYPING_TYPE_STARTED, TYPING_TYPE_PAUSED, \
-    TYPING_TYPE_STOPPED, TYPING_TYPE_UNKNOWN, QueryPresenceRequest, ParticipantId, FIELD_MASK_LAST_SEEN, \
-    FIELD_MASK_DEVICE, FIELD_MASK_MOOD, FIELD_MASK_AVAILABLE, FIELD_MASK_REACHABLE, SetFocusRequest
+from hangups.conversation import _sync_all_conversations
+from hangups.hangouts_pb2 import StateUpdate, CONVERSATION_TYPE_GROUP
 
 from hanger._authenticator import Authenticator
 from hanger.cache import _Cache
+from hanger.clientuser import ClientUser
 from hanger.conversation import Conversation
 from hanger.conversation_event import ChatMessageEvent, ParticipantJoinEvent, ParticipantLeaveEvent, \
     ParticipantKickEvent, ConversationRenameEvent, HangoutEvent, GroupLinkSharingEvent, OTRModificationEvent
-from hanger.enums import TypingStatus
 from hanger.events import EventHandler
+from hanger.http import HTTPClient
 from hanger.presence import Presence
 from hanger.user import User
 
@@ -27,6 +22,7 @@ class Client:
         self._hangups_client: hangups.Client = hangups.Client(self._authenticator.authenticate())
         self._event_handler: EventHandler = EventHandler(self._hangups_client)
         self._cache: _Cache = _Cache(self)
+        self.http = HTTPClient(self._hangups_client)
         self.loop = asyncio.get_event_loop()
 
         self._event_handler.create_event('on_message')
@@ -60,7 +56,7 @@ class Client:
         return func
 
     async def on_ready(self) -> None:
-        pass
+        await self._prepare()
 
     async def on_disconnect(self) -> None:
         pass
@@ -95,201 +91,79 @@ class Client:
     async def on_message(self, event: ChatMessageEvent) -> None:
         pass
 
+    async def _prepare(self) -> None:
+        self.me = await self.fetch_self_user()
+
+        conv_states, _ = await _sync_all_conversations(self._hangups_client)
+        for state in conv_states:
+            await self._cache._update_cache(
+                state.conversation
+            )
+
     async def _on_conversation_state_update(self, payload: StateUpdate) -> None:
         notification_type = payload.WhichOneof('state_update')
 
         if payload.HasField('conversation'):
-            await self._update_users(
-                payload.conversation
-            )
-            await self._update_conversation(
+            await self._cache._update_cache(
                 payload.conversation
             )
 
         if notification_type == 'event_notification':
-            event_ = payload.event_notification.event
+            await self._event_handler.handle_event(payload.event_notification.event)
 
-            conversation = self._cache.get_conversation(event_.conversation_id.id)
-            user = conversation.get_participant(event_.sender_id.gaia_id)
-
-            if event_.HasField('chat_message'):
-                await self._event_handler.invoke_event('on_message', ChatMessageEvent(event_, user, conversation))
-
-            elif event_.HasField('membership_change'):
-                if event_.membership_change.type == MEMBERSHIP_CHANGE_TYPE_JOIN:
-                    participants = [conversation.get_participant(user.gaia_id) for user in
-                                    event_.membership_change.participant_ids]
-
-                    await self._event_handler.invoke_event('on_participant_join',
-                                                           ParticipantJoinEvent(event_, user,
-                                                                                conversation, participants))
-                else:
-                    participants = [(await self.fetch_user(gaia_id=user.gaia_id)) for user in
-                                    event_.membership_change.participant_ids]
-
-                    if user in participants:
-                        await self._event_handler.invoke_event('on_participant_leave',
-                                                               ParticipantLeaveEvent(event_, user,
-                                                                                     conversation, participants))
-                    else:
-                        await self._event_handler.invoke_event('on_participant_kick',
-                                                               ParticipantKickEvent(event_, user,
-                                                                                    conversation, participants))
-
-                    # Prevent invalid caching
-                    for user in participants:
-                        try:
-                            self._cache.remove_user(user.id)
-                        except KeyError:
-                            pass
-
-            elif event_.HasField('conversation_rename'):
-                await self._event_handler.invoke_event('on_conversation_rename',
-                                                       ConversationRenameEvent(event_.conversation_rename,
-                                                                               user, conversation))
-
-            elif event_.HasField('hangout_event'):
-                participants = [conversation.get_participant(user.gaia_id)
-                                for user in event_.membership_change.participant_ids]
-                await self._event_handler.invoke_event('on_hangout',
-                                                       HangoutEvent(event_, user, conversation, participants))
-
-            elif event_.HasField('group_link_sharing_modification'):
-                await self._event_handler.invoke_event('on_group_link_sharing_modification',
-                                                       GroupLinkSharingEvent(event_, user, conversation))
-
-            elif event_.HasField('otr_modification'):
-                await self._event_handler.invoke_event('on_history_modification',
-                                                       OTRModificationEvent(event_, user, conversation))
-
-    def connect(self):
+    def connect(self) -> None:
         self.loop.run_until_complete(self._hangups_client.connect())
 
-    async def _update_users(self, payload: StateUpdate) -> None:
-        for participant in payload.participant_data:
-            user_id = participant.id.gaia_id
-            user = self._cache.get_user(user_id)
+    async def disconnect(self) -> None:
+        await self._hangups_client.disconnect()
 
-            if not user:
-                user = await self.fetch_user(gaia_id=user_id)
-                self._cache.store_user(user)
-            else:
-                _updated_user = await self.fetch_user(gaia_id=user_id)
-                user._update(_updated_user._data)
+    def get_user(self, user_id) -> User:
+        return self._cache.get_user(user_id)
 
-            await self._update_presence(user)
+    def get_conversation(self, conversation_id) -> Conversation:
+        return self._cache.get_conversation(conversation_id)
 
-    async def _update_conversation(self, payload: StateUpdate) -> None:
-        conversation_id = payload.conversation_id.id
-        conversation = self._cache.get_conversation(conversation_id)
-
-        if conversation is None:
-            conversation = await self.fetch_conversation(conversation_id)
-            self._cache.store_conversation(conversation)
-        else:
-            _updated_conversation = await self.fetch_conversation(conversation_id)
-            conversation._update(_updated_conversation._data)
-
-    async def fetch_user(self, **kwargs) -> User:
-        data = await self._hangups_client.get_entity_by_id(GetEntityByIdRequest(
-            request_header=self._hangups_client.get_request_header(),
-            batch_lookup_spec=[
-                EntityLookupSpec(
-                    **kwargs
-                )
-            ]
-        ))
+    async def fetch_user(self, user_id=None, email=None, phone=None) -> User:
+        data = await self.http.fetch_user(user_id, email, phone)
 
         return User(self, data)
 
-    async def fetch_conversation(self, id_) -> Conversation:
-        data = await self._hangups_client.get_conversation(GetConversationRequest(
-            request_header=self._hangups_client.get_request_header(),
-            conversation_spec=ConversationSpec(
-                conversation_id=ConversationId(
-                    id=str(id_)
-                )
-            )
-        ))
+    async def fetch_conversation(self, conversation_id) -> Conversation:
+        data = await self.http.fetch_conversation(conversation_id)
 
-        return Conversation(self, data.conversation_state.conversation)
+        return Conversation(self, data)
 
     async def create_private_conversation(self, user: User) -> Conversation:
-        data = await self._hangups_client.create_conversation(CreateConversationRequest(
-            request_header=self._hangups_client.get_request_header(),
-            type=CONVERSATION_TYPE_ONE_TO_ONE,
-            invitee_id=[
-                InviteeID(
-                    gaia_id=str(user.id)
-                )
-            ],
-            client_generated_id=self._hangups_client.get_client_generated_id()
-        ))
+        data = self.http.create_private_conversation(user.id)
 
-        return Conversation(self, data.conversation)
+        return Conversation(self, data)
 
     async def leave_conversation(self, conversation: Conversation) -> Conversation:
         if conversation.type == CONVERSATION_TYPE_GROUP:
-            await self._hangups_client.remove_user(RemoveUserRequest(
-                request_header=self._hangups_client.get_request_header(),
-                event_request_header=conversation._get_event_request_header()
-            ))
+            await self.http.leave_private_conversation(conversation.id)
         else:
-            await self._hangups_client.delete_conversation(DeleteConversationRequest(
-                request_header=self._hangups_client.get_request_header(),
-                conversation_id=(await conversation._get_conversation_id()),
-                delete_upper_bound_timestamp=parsers.to_timestamp(
-                    datetime.now(tz=timezone.utc)
-                )
-            ))
+            await self.http.leave_group_conversation(conversation._get_event_request_header())
+
         return self._cache.remove_conversation(conversation.id)
 
     async def rename_conversation(self, conversation: Conversation, name: str) -> None:
-        await self._hangups_client.rename_conversation(RenameConversationRequest(
-            request_header=self._hangups_client.get_request_header(),
-            new_name=name,
-            event_request_header=conversation._get_event_request_header()
-        ))
+        await self.http.rename_conversation(conversation._get_event_request_header(), name)
 
-    async def set_typing(self, conversation: Conversation, typing: TypingStatus) -> None:
-        aliases = {TypingStatus.STARTED: TYPING_TYPE_STARTED, TypingStatus.PAUSED: TYPING_TYPE_PAUSED,
-                   TypingStatus.STOPPED: TYPING_TYPE_STOPPED, TypingStatus.UNKNOWN: TYPING_TYPE_UNKNOWN}
-
-        await self._hangups_client.set_typing(SetTypingRequest(
-            request_header=self._hangups_client.get_request_header(),
-            conversation_id=(await conversation._get_conversation_id()),
-            type=aliases[typing]
-        ))
+    async def set_typing(self, conversation: Conversation, typing) -> None:
+        await self.http.set_typing(conversation.id, typing.value)
 
     async def _update_presence(self, user: User):
-        data = await self._hangups_client.query_presence(QueryPresenceRequest(
-            request_header=self._hangups_client.get_request_header(),
-            participant_id=[
-                ParticipantId(
-                    gaia_id=user.id
-                )
-            ],
-            field_mask=[
-                FIELD_MASK_REACHABLE,
-                FIELD_MASK_AVAILABLE,
-                FIELD_MASK_MOOD,
-                FIELD_MASK_DEVICE,
-                FIELD_MASK_LAST_SEEN,
-            ]
-        ))
+        data = await self.http.fetch_presence(user.id)
+        user.presence = Presence(data)
 
-        presence_result = getattr(data, 'presence_result', None)[0]
-        user.presence = Presence(getattr(presence_result, 'presence', None))
         return user
 
     async def set_focus(self, conversation, _type, timeout=10):
-        data = await self._hangups_client.set_focus(SetFocusRequest(
-            request_header=self._hangups_client.get_request_header(),
-            conversation_id=ConversationId(
-                id=conversation.id
-            ),
-            type=_type.value,
-            timeout_secs=timeout
-        ))
+        data = await self.http.set_focus(conversation.id, _type.value, timeout)
 
         return data.timestamp
+
+    async def fetch_self_user(self):
+        data = await self.http.fetch_self_user()
+
+        return ClientUser(self, data)

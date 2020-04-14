@@ -1,15 +1,14 @@
 from hanger.enums import try_enum, InvitationStatus
 from hanger.user import User
-import hanger
 
 
 class Participant(User):
-    def __init__(self, cache, data, conversation_data, conversation):
-        self._conversation_data = conversation_data
-        self.conversation: hanger.Conversation = conversation
+    def __init__(self, client, data, participant_data, conversation):
+        self._participant_data = participant_data
+        self.conversation = conversation
 
-        super().__init__(cache, data)
-        self._update_participant(self._conversation_data)
+        super().__init__(client, data)
+        self._update_participant(self._participant_data)
 
     def _update(self, data):
         super()._update(data)
