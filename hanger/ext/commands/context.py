@@ -9,5 +9,5 @@ class Context:
 
         self._event = event
 
-    async def send(self, text='', location=None, image=None, me=False):
-        await self.conversation.send(text, location, image, me)
+    async def respond(self, text='', location=None, image=None, me=False):
+        await self._event.respond(text, location, image, me)

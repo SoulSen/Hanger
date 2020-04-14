@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import hangups
@@ -9,6 +10,7 @@ from hangups.hangouts_pb2 import StateUpdate, GetEntityByIdRequest, EntityLookup
     TYPING_TYPE_STOPPED, TYPING_TYPE_UNKNOWN, QueryPresenceRequest, ParticipantId, FIELD_MASK_LAST_SEEN, \
     FIELD_MASK_DEVICE, FIELD_MASK_MOOD, FIELD_MASK_AVAILABLE, FIELD_MASK_REACHABLE, SetFocusRequest
 
+from hanger._authenticator import Authenticator
 from hanger.cache import _Cache
 from hanger.conversation import Conversation
 from hanger.conversation_event import ChatMessageEvent, ParticipantJoinEvent, ParticipantLeaveEvent, \
@@ -20,11 +22,12 @@ from hanger.user import User
 
 
 class Client:
-    def __init__(self, cookies):
-        self._hangups_client: hangups.Client = hangups.Client(cookies)
+    def __init__(self, refresh_token):
+        self._authenticator = Authenticator(refresh_token)
+        self._hangups_client: hangups.Client = hangups.Client(self._authenticator.authenticate())
         self._event_handler: EventHandler = EventHandler(self._hangups_client)
         self._cache: _Cache = _Cache(self)
-        self._session = None
+        self.loop = asyncio.get_event_loop()
 
         self._event_handler.create_event('on_message')
         self._event_handler.create_event('on_ready')
@@ -159,6 +162,9 @@ class Client:
                 await self._event_handler.invoke_event('on_history_modification',
                                                        OTRModificationEvent(event_, user, conversation))
 
+    def connect(self):
+        self.loop.run_until_complete(self._hangups_client.connect())
+
     async def _update_users(self, payload: StateUpdate) -> None:
         for participant in payload.participant_data:
             user_id = participant.id.gaia_id
@@ -231,7 +237,7 @@ class Client:
         else:
             await self._hangups_client.delete_conversation(DeleteConversationRequest(
                 request_header=self._hangups_client.get_request_header(),
-                conversation_id=conversation._get_conversation_id(),
+                conversation_id=(await conversation._get_conversation_id()),
                 delete_upper_bound_timestamp=parsers.to_timestamp(
                     datetime.now(tz=timezone.utc)
                 )
@@ -251,7 +257,7 @@ class Client:
 
         await self._hangups_client.set_typing(SetTypingRequest(
             request_header=self._hangups_client.get_request_header(),
-            conversation_id=conversation._get_conversation_id(),
+            conversation_id=(await conversation._get_conversation_id()),
             type=aliases[typing]
         ))
 
@@ -282,7 +288,7 @@ class Client:
             conversation_id=ConversationId(
                 id=conversation.id
             ),
-            type=_type,
+            type=_type.value,
             timeout_secs=timeout
         ))
 

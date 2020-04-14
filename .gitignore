@@ -2,3 +2,4 @@
 .idea/
 hanger/__pycache__/
 hanger/ext/commands/__pycache__/
+tests/refresh-token.txt

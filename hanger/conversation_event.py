@@ -18,6 +18,9 @@ class ConversationEvent:
     def event_id(self):
         return self._event.event_id
 
+    async def respond(self, text='', location=None, image=None, me=False):
+        await self.conversation.send(text, location, image, me)
+
 
 class ChatMessageEvent(ConversationEvent):
     @property

@@ -5,6 +5,7 @@ from hangups.hangouts_pb2 import Conversation as HangupsConversation, EventReque
     DELIVERY_MEDIUM_BABEL
 
 from hanger.abc import Messageable
+from hanger.context_managers import Typing, Focus
 from hanger.enums import try_enum, ConversationType, ConversationHistoryStatus, ConversationHistoryToggleable, \
     NetworkType, ForceHistory, GroupLinkSharingStatus, TypingStatus, FocusType
 from hanger.participant import Participant
@@ -28,6 +29,9 @@ class Conversation(Messageable):
     async def leave(self):
         return await self._client.leave_conversation(self)
 
+    def typing(self):
+        return Typing(self)
+
     async def set_typing(self, typing: TypingStatus) -> None:
         if typing == self.typing_status:
             return
@@ -35,8 +39,11 @@ class Conversation(Messageable):
         await self._client.set_typing(self, typing)
         self.typing_status = typing
 
+    def focused(self):
+        return Focus(self)
+
     async def focus(self, timeout=10):
-        await self._client.set_focus(self, FocusType.FOCUSED.value, timeout)
+        await self._client.set_focus(self, FocusType.FOCUSED, timeout)
 
     async def _get_conversation_id(self) -> ConversationId:
         return ConversationId(
