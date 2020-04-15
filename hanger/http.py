@@ -111,7 +111,7 @@ class HTTPClient:
             timeout_secs=timeout
         ))
 
-        return data.timestamp
+        return data
 
     async def fetch_self_user(self):
         data = await self._client.get_self_info(GetSelfInfoRequest(
