@@ -31,6 +31,7 @@ class Client:
                 self._event_handler.register_event(event_name, event_func)
 
         self._event_handler.register_event('on_connect', self._prepare)
+        self._event_handler.register_event('on_state_update', self._on_conversation_state_update)
 
     def event(self, func):
         self._event_handler.register_event(func.__name__, func)
