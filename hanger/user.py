@@ -27,7 +27,7 @@ class User(Messageable):
     async def _get_conversation_id(self):
         for conversation in self._client._cache.get_all_conversations():
             if conversation.type == ConversationType.ONE_TO_ONE and \
-                    any(participant.id == self.id for participant in conversation._participants):
+                    any(participant_id == self.id for participant_id in conversation._participants):
                 return conversation._get_conversation_id()
 
         return (await self._client.create_private_conversation(self))._get_conversation_id()
