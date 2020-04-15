@@ -124,12 +124,14 @@ class HTTPClient:
 
     async def remove_user_conversation(self, request_header, user_id):
         await self._client.remove_user(RemoveUserRequest(
-            request_header=request_header,
-            participant_id=user_id
+            request_header=self._client.get_request_header(),
+            participant_id=user_id,
+            event_request_header=request_header
         ))
 
     async def add_user_conversation(self, request_header, user_id):
         await self._client.add_user(AddUserRequest(
-            request_header=request_header,
-            participant_id=user_id
+            request_header=self._client.get_request_header(),
+            participant_id=user_id,
+            event_request_header=request_header
         ))
