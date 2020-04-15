@@ -7,14 +7,13 @@ from hangups.hangouts_pb2 import StateUpdate, CONVERSATION_TYPE_GROUP
 
 from hanger._authenticator import Authenticator
 from hanger.cache import _Cache
-from hanger.clientuser import ClientUser
 from hanger.conversation import Conversation
 from hanger.conversation_event import ChatMessageEvent, ParticipantJoinEvent, ParticipantLeaveEvent, \
     ParticipantKickEvent, ConversationRenameEvent, HangoutEvent, GroupLinkSharingEvent, OTRModificationEvent
 from hanger.events import EventHandler
 from hanger.http import HTTPClient
 from hanger.presence import Presence
-from hanger.user import User
+from hanger.user import User, ClientUser
 
 
 class Client:
