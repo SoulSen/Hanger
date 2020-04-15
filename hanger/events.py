@@ -12,22 +12,42 @@ class EventHandler:
 
         self.aliases = {'on_ready': 'on_connect'}
 
-    def register_event(self, event_name: str, hook: Callable):
-        alias = self.aliases.get(event_name)
-        if alias:
-            getattr(self._client, alias).add_observer(hook)
-            return
-        else:
-            getattr(self._client, event_name).add_observer(hook)
+        self.events = {'on_connect': self._client._hangups_client.on_connect,
+                       'on_disconnect': self._client._hangups_client.on_disconnect,
+                       'on_state_update': self._client._hangups_client.on_state_update,
+                       'on_reconnect': self._client._hangups_client.on_reconnect}
 
-    def create_event(self, event_name: str) -> None:
-        setattr(self._client, event_name, event.Event('hanger.{}'.format(event_name)))
+        self.create_event('on_message',
+                          'on_participant_leave',
+                          'on_participant_kick',
+                          'on_participant_join',
+                          'on_conversation_rename',
+                          'on_hangout',
+                          'on_group_link_sharing_modification',
+                          'on_history_modification')
+
+    def register_event(self, event_name: str, hook: Callable):
+        event_name = self.aliases.get(event_name) or event_name
+
+        event_ = self.events.get(event_name)
+        if event_:
+            event_.add_observer(hook)
+
+    def create_event(self, *event_name: str) -> None:
+        for event_ in event_name:
+            self.events[event_] = event.Event('hanger.{}'.format(event_name))
 
     async def invoke_event(self, event_name: str, *args, **kwargs) -> None:
-        await getattr(self._client, event_name).fire(*args, **kwargs)
+        event_name = self.aliases.get(event_name) or event_name
+
+        event_ = self.events.get(event_name)
+        if event_:
+            await event_.fire(*args, **kwargs)
 
     def get_hooks(self, event_name: str) -> Callable:
-        return getattr(self._client, event_name)._observers
+        event_name = self.aliases.get(event_name) or event_name
+
+        return self.events.get(event_name)._observers
 
     async def handle_event(self, event_):
         conversation = self._client.get_conversation(event_.conversation_id.id)

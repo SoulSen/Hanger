@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 
 import hangups
 from hangups.conversation import _sync_all_conversations
@@ -20,36 +21,15 @@ class Client:
     def __init__(self, refresh_token):
         self._authenticator = Authenticator(refresh_token)
         self._hangups_client: hangups.Client = hangups.Client(self._authenticator.authenticate())
-        self._event_handler: EventHandler = EventHandler(self._hangups_client)
+        self._event_handler: EventHandler = EventHandler(self)
         self._cache: _Cache = _Cache(self)
         self.http = HTTPClient(self._hangups_client)
         self.loop = asyncio.get_event_loop()
 
-        self._event_handler.create_event('on_message')
-        self._event_handler.create_event('on_ready')
-        self._event_handler.create_event('on_participant_leave')
-        self._event_handler.create_event('on_participant_kick')
-        self._event_handler.create_event('on_participant_join')
-        self._event_handler.create_event('on_conversation_rename')
-        self._event_handler.create_event('on_hangout')
-        self._event_handler.create_event('on_group_link_sharing_modification')
-        self._event_handler.create_event('on_history_modification')
-
-        self._event_handler.register_event('on_connect', self.on_ready)
-        self._event_handler.register_event('on_disconnect', self.on_reconnect)
-        self._event_handler.register_event('on_reconnect', self.on_reconnect)
-        self._event_handler.register_event('on_participant_leave', self.on_participant_leave)
-        self._event_handler.register_event('on_participant_kick', self.on_participant_kick)
-        self._event_handler.register_event('on_participant_join', self.on_participant_join)
-        self._event_handler.register_event('on_state_update', self.on_state_update)
-        self._event_handler.register_event('on_state_update', self._on_conversation_state_update)
-        self._event_handler.register_event('on_message', self.on_message)
-        self._event_handler.register_event('on_conversation_rename', self.on_conversation_rename)
-        self._event_handler.register_event('on_hangout', self.on_hangout)
-        self._event_handler.register_event('on_group_link_sharing_modification',
-                                           self.on_group_link_sharing_modification)
-        self._event_handler.register_event('on_history_modification',
-                                           self.on_history_modification)
+        for event_name, event_func in inspect.getmembers(self, predicate=inspect.ismethod):
+            event_ = self._event_handler.events.get(event_name)
+            if event_:
+                self._event_handler.register_event(event_name, event_func)
 
     def event(self, func):
         self._event_handler.register_event(func.__name__, func)

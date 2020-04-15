@@ -5,7 +5,7 @@ bot = commands.Bot('//', refresh_token="./refresh-token.txt")
 
 
 @bot.event
-async def on_ready():
+async def on_connect():
     print('Ready!!!!')
 
 
