@@ -31,12 +31,17 @@ class Client:
             if event_:
                 self._event_handler.register_event(event_name, event_func)
 
+        self._event_handler.register_event('on_connect', self._prepare)
+
     def event(self, func):
         self._event_handler.register_event(func.__name__, func)
         return func
 
     async def on_ready(self) -> None:
-        await self._prepare()
+        pass
+
+    async def on_connect(self) -> None:
+        pass
 
     async def on_disconnect(self) -> None:
         pass
@@ -79,6 +84,8 @@ class Client:
             await self._cache._update_cache(
                 state.conversation
             )
+
+        await self._event_handler.invoke_event('on_ready')
 
     async def _on_conversation_state_update(self, payload: StateUpdate) -> None:
         notification_type = payload.WhichOneof('state_update')

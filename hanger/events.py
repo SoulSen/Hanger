@@ -10,14 +10,13 @@ class EventHandler:
     def __init__(self, client):
         self._client = client
 
-        self.aliases = {'on_ready': 'on_connect'}
-
         self.events = {'on_connect': self._client._hangups_client.on_connect,
                        'on_disconnect': self._client._hangups_client.on_disconnect,
                        'on_state_update': self._client._hangups_client.on_state_update,
                        'on_reconnect': self._client._hangups_client.on_reconnect}
 
         self.create_event('on_message',
+                          'on_ready',
                           'on_participant_leave',
                           'on_participant_kick',
                           'on_participant_join',
@@ -27,8 +26,6 @@ class EventHandler:
                           'on_history_modification')
 
     def register_event(self, event_name: str, hook: Callable):
-        event_name = self.aliases.get(event_name) or event_name
-
         event_ = self.events.get(event_name)
         if event_:
             event_.add_observer(hook)
@@ -38,15 +35,11 @@ class EventHandler:
             self.events[event_] = event.Event('hanger.{}'.format(event_name))
 
     async def invoke_event(self, event_name: str, *args, **kwargs) -> None:
-        event_name = self.aliases.get(event_name) or event_name
-
         event_ = self.events.get(event_name)
         if event_:
             await event_.fire(*args, **kwargs)
 
     def get_hooks(self, event_name: str) -> Callable:
-        event_name = self.aliases.get(event_name) or event_name
-
         return self.events.get(event_name)._observers
 
     async def handle_event(self, event_):
