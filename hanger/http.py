@@ -77,7 +77,9 @@ class HTTPClient:
     async def set_typing(self, conversation_id, typing):
         await self._client.set_typing(SetTypingRequest(
             request_header=self._client.get_request_header(),
-            conversation_id=conversation_id,
+            conversation_id=ConversationId(
+                id=conversation_id
+            ),
             type=typing
         ))
 
