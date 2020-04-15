@@ -5,7 +5,7 @@ from hangups.hangouts_pb2 import GetConversationRequest, ConversationSpec, Conve
     CONVERSATION_TYPE_ONE_TO_ONE, InviteeID, RemoveUserRequest, DeleteConversationRequest, \
     RenameConversationRequest, QueryPresenceRequest, ParticipantId, FIELD_MASK_REACHABLE, FIELD_MASK_AVAILABLE, \
     FIELD_MASK_MOOD, FIELD_MASK_DEVICE, FIELD_MASK_LAST_SEEN, SetFocusRequest, GetSelfInfoRequest, GetEntityByIdRequest, \
-    EntityLookupSpec, SetTypingRequest
+    EntityLookupSpec, SetTypingRequest, AddUserRequest
 
 
 class HTTPClient:
@@ -119,3 +119,15 @@ class HTTPClient:
         ))
 
         return data
+
+    async def remove_user_conversation(self, request_header, user_id):
+        await self._client.remove_user(RemoveUserRequest(
+            request_header=request_header,
+            participant_id=user_id
+        ))
+
+    async def add_user_conversation(self, request_header, user_id):
+        await self._client.add_user(AddUserRequest(
+            request_header=request_header,
+            participant_id=user_id
+        ))

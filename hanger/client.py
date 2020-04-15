@@ -153,3 +153,9 @@ class Client:
         data = await self.http.fetch_self_user()
 
         return ClientUser(self, data)
+
+    async def add_user_conversation(self, conversation, user):
+        await self.http.add_user_conversation(conversation._get_event_request_header(), user.id)
+
+    async def remove_user_conversation(self, conversation, user):
+        await self.http.remove_user_conversation(conversation._get_event_request_header(), user.id)

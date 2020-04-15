@@ -29,6 +29,12 @@ class Conversation(Messageable):
     async def leave(self):
         return await self._client.leave_conversation(self)
 
+    async def add_user(self, user):
+        await self._client.add_user_conversation(self, user)
+
+    async def remove_user(self, user):
+        await self._client.remove_user_conversation(self, user)
+
     def typing(self):
         return Typing(self)
 
