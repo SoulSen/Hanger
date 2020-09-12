@@ -1,6 +1,7 @@
+import inspect
+
 from hanger import Client
 from hanger.conversation_event import ChatMessageEvent
-from hanger.ext.commands.context import Context
 
 
 class Bot(Client):
@@ -17,12 +18,23 @@ class Bot(Client):
             command = command.replace(self.prefix, '')
             arguments = command.split(' ')
 
-            if arguments[0] in self._commands:
-                command = arguments.pop(0)
-                command_func = self._commands[command]
-                ctx = Context(self, event, command)
+            func = self._commands.get(arguments.pop(0))
 
-                await command_func(ctx, *arguments)
+            if not func:
+                return
+            params = inspect.signature(func).parameters
+
+            if len(params) - 1 == len(arguments):
+                for index, param in enumerate(params.values()):
+                    if param.kind == inspect.Parameter.KEYWORD_ONLY:
+                        break
+                else:
+                    index = len(params.values()) - 1
+
+                if index == len(params.values()) - 1:
+                    await func(*arguments)
+                else:
+                    await func(*arguments[:index], ''.join(arguments[index:]))
 
     def add_command(self, func, aliases=[]):
         self._commands[func.__name__] = func

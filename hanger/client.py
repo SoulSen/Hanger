@@ -33,6 +33,14 @@ class Client:
         self._event_handler.register_event('on_connect', self._prepare)
         self._event_handler.register_event('on_state_update', self._on_conversation_state_update)
 
+    @property
+    def conversations(self):
+        return self._cache.get_all_conversations()
+
+    @property
+    def users(self):
+        return self._cache.get_all_users()
+
     def event(self, func):
         self._event_handler.register_event(func.__name__, func)
         return func
