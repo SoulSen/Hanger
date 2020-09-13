@@ -25,6 +25,8 @@ class Client:
         self.http = HTTPClient(self._hangups_client)
         self.loop = asyncio.get_event_loop()
 
+        self.is_ready = False
+
         for event_name, event_func in inspect.getmembers(self, predicate=inspect.ismethod):
             event_ = self._event_handler.events.get(event_name)
             if event_:
@@ -93,6 +95,7 @@ class Client:
                 state.conversation
             )
 
+        self.is_ready = True
         await self._event_handler.invoke_event('on_ready')
 
     async def _on_conversation_state_update(self, payload: StateUpdate) -> None:
